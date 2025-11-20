@@ -73,14 +73,17 @@
   :group 'magit-extensions
   :group 'org-link)
 
-(defcustom orgit-file-abbreviate-revisions t
+(defcustom orgit-file-abbreviate-revisions nil
   "Whether to use abbreviated revision hashes in stored links.
 
 When non-nil, use `magit-rev-abbrev' to shorten revision hashes
-in stored links.  When nil, use full 40-character SHA-1 hashes.
+in both the link path.  When nil, use full
+40-character SHA-1 hashes.
 
 Abbreviated hashes are more readable but may become ambiguous in
-very large repositories with many commits."
+very large repositories with many commits.  The abbreviated form
+is sufficient for most uses and matches the behavior of similar
+tools."
   :group 'orgit-file
   :type 'boolean)
 
@@ -135,6 +138,10 @@ The behavior is controlled by `orgit-file-link-to-file-use-orgit'.
 When that variable is nil or doesn't match the current context,
 return nil to allow file: links as an alternative.
 
+The revision format in the link is controlled by
+`orgit-file-abbreviate-revisions'.  When non-nil, use abbreviated
+hashes; when nil, use full 40-character hashes.
+
 With a `\\[universal-argument]' prefix argument, skip storing
 orgit-file link and allow fallback to file: link instead.
 
@@ -162,18 +169,14 @@ Return non-nil if a link was stored, nil otherwise."
                               (magit-rev-parse "HEAD")))))
             (when (and file rev)
               (let* ((repo-id (orgit--current-repository))
-                     (rev-display (if orgit-file-abbreviate-revisions
-                                      (magit-rev-abbrev rev)
-                                    rev))
-                     (link (format "orgit-file:%s::%s::%s" repo-id rev file))
-                     (description (format "%s@%s:%s"
-                                          (file-name-nondirectory file)
-                                          rev-display
-                                          repo-id)))
+                     (rev-for-link (if orgit-file-abbreviate-revisions
+                                       (magit-rev-abbrev rev)
+                                     rev))
+                     (link (format "orgit-file:%s::%s::%s"
+                                   repo-id rev-for-link file)))
                 (org-link-store-props
                  :type "orgit-file"
-                 :link link
-                 :description description)
+                 :link link)
                 t))))))))
 
 ;;;###autoload
