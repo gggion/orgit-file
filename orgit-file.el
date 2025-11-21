@@ -120,7 +120,7 @@ create-if-interactive
 
 use-existing
       Only create orgit-file links in magit-specific contexts (like
-      magit-blob-mode).  Regular file buffers will fall back to file:
+      `magit-blob-mode').  Regular file buffers will fall back to file:
       links.
 
 nil   Never create orgit-file links, instead allow file: links."
