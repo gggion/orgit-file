@@ -98,7 +98,8 @@ very large repositories with many commits.  The abbreviated form
 is sufficient for most uses and matches the behavior of similar
 tools."
   :group 'orgit-file
-  :type 'boolean)
+  :type 'boolean
+  :package-version '(orgit-file . "0.1.0"))
 
 (defcustom orgit-file-link-to-file-use-orgit nil
   "Non-nil means storing a link to a file in a Git repo will use orgit-file links.
@@ -125,7 +126,8 @@ nil   Never create orgit-file links, instead allow file: links."
           (const :tag "Create if storing link interactively"
                  create-if-interactive)
           (const :tag "Only in magit contexts" use-existing)
-          (const :tag "Never use orgit-file links" nil)))
+          (const :tag "Never use orgit-file links" nil))
+  :package-version '(orgit-file . "0.1.0"))
 
 (defcustom orgit-file-export-alist
   `(("github.com[:/]\\(.+?\\)\\(?:\\.git\\)?$"
@@ -156,8 +158,29 @@ This can be overridden per-repository using:
   :group 'orgit-file
   :type '(repeat (list :tag "Remote template"
                        (regexp :tag "Remote regexp")
-                       (string :tag "File URL format"))))
+                       (string :tag "File URL format")))
+  :package-version '(orgit-file . "0.1.0"))
 
+(defcustom orgit-file-export-text-fragments nil
+  "Whether to export text search patterns as URL text fragments.
+
+When non-nil, orgit-file links with text search patterns (not line
+numbers) are exported with #:~:text= URL fragments.  This enables
+browsers to scroll to and highlight the matching text.
+
+Text fragments are part of the WICG Text Fragments specification,
+currently supported by Chromium-based browsers (Chrome, Edge, Brave)
+and Safari.  Firefox support is in development.  Browsers without
+support ignore the fragment, showing the file without highlighting.
+
+When nil, text search patterns in links are not included in exported
+URLs.  Only line numbers and line ranges generate URL fragments.
+
+This setting does not affect link following behavior within Emacs,
+which always uses Org's search mechanism regardless of this setting."
+  :group 'orgit-file
+  :type 'boolean
+  :package-version '(orgit-file . "0.2.0"))
 ;;; File links
 
 ;;;###autoload
@@ -168,6 +191,28 @@ This can be overridden per-repository using:
                              :follow   #'orgit-file-open
                              :export   #'orgit-file-export
                              :complete #'orgit-file-complete-link)))
+
+(defun orgit-file--url-encode-text-fragment (text)
+  "Encode TEXT for use in URL text fragment.
+
+Text fragments use percent-encoding following RFC 3986. This function
+encodes TEXT with a restricted set of allowed characters appropriate
+for the :~:text= fragment syntax.
+
+Only unreserved characters (A-Z, a-z, 0-9, and the marks . ~) plus
+space and parentheses are preserved. All other characters, including
+parentheses, are percent-encoded.
+
+The Text Fragments specification requires this encoding to ensure
+proper parsing and matching across different browsers."
+  (let ((allowed-chars (url--allowed-chars
+                        '(?A ?B ?C ?D ?E ?F ?G ?H ?I ?J ?K ?L ?M
+                          ?N ?O ?P ?Q ?R ?S ?T ?U ?V ?W ?X ?Y ?Z
+                          ?a ?b ?c ?d ?e ?f ?g ?h ?i ?j ?k ?l ?m
+                          ?n ?o ?p ?q ?r ?s ?t ?u ?v ?w ?x ?y ?z
+                          ?0 ?1 ?2 ?3 ?4 ?5 ?6 ?7 ?8 ?9
+                          ?\( ?\) ?. ?~ ?\s))))
+    (url-hexify-string text allowed-chars)))
 
 ;;;###autoload
 (defun orgit-file-store (&optional interactive?)
@@ -263,9 +308,14 @@ that require full hashes (e.g., Codeberg).
 If PATH includes a line number or range, append appropriate fragment
 identifier to the URL (e.g., #L43 or #L43-L58 for GitHub).
 
+If PATH includes a text search pattern (not a line number) and
+`orgit-file-export-text-fragments' is non-nil, append a text fragment
+using the :~:text= syntax for browsers supporting the Text Fragments
+specification.
+
 Return formatted link for FORMAT, or signal `org-link-broken' if
 the URL cannot be determined."
-  (pcase-let* ((`(,repo ,rev ,file-path ,_search-option ,line-start ,line-end)
+  (pcase-let* ((`(,repo ,rev ,file-path ,search-option ,line-start ,line-end)
                 (orgit-file--parse-path path))
                (dir (orgit--repository-directory repo)))
     (if (file-exists-p dir)
@@ -293,14 +343,23 @@ the URL cannot be determined."
                                            `((?n . ,(match-string 1 url))
                                              (?r . ,full-rev)
                                              (?f . ,file-path)))))))
-                  (let ((link-with-lines
-                         (if line-start
-                             (concat link
-                                     (if (and line-end (not (= line-start line-end)))
-                                         (format "#L%d-L%d" line-start line-end)
-                                       (format "#L%d" line-start)))
-                           link)))
-                    (orgit--format-export link-with-lines desc format))
+                  (let ((link-with-fragment
+                         (cond
+                          ;; Line number or range takes precedence
+                          (line-start
+                           (concat link
+                                   (if (and line-end (not (= line-start line-end)))
+                                       (format "#L%d-L%d" line-start line-end)
+                                     (format "#L%d" line-start))))
+                          ;; Text search pattern when enabled
+                          ((and search-option
+                                orgit-file-export-text-fragments)
+                           (concat link
+                                   "#:~:text="
+                                   (orgit-file--url-encode-text-fragment search-option)))
+                          ;; No fragment
+                          (t link))))
+                    (orgit--format-export link-with-fragment desc format))
                 (signal 'org-link-broken
                         (list (format "Cannot determine public url for %s"
                                       path))))
@@ -335,7 +394,14 @@ PATH format: REPO::REV::FILE-PATH or REPO::REV::FILE-PATH::SEARCH
 SEARCH can be:
 - A line number (integer as string like \"43\")
 - A line range (\"43-58\")
-- Any other Org search string (heading, custom ID, regex)
+- Any other Org search string (heading, custom ID, regex, or text)
+
+When SEARCH is a line number or range, it is used for line-based
+navigation and exported as #L43 or #L43-L58 fragments.
+
+When SEARCH is any other string, it is treated as a text search
+pattern for Org's search mechanism and exported as a :~:text=
+URL fragment for web browsers supporting Text Fragments.
 
 Return (REPO REV FILE-PATH SEARCH-OPTION LINE-START LINE-END) as a list.
 LINE-START and LINE-END are integers when SEARCH-OPTION is a line
