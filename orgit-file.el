@@ -6,12 +6,7 @@
 ;; Keywords: hypermedia vc
 
 ;; Package-Version: 0.1.0
-;; Package-Requires: (
-;;     (emacs  "29.1")
-;;     (compat "30.1")
-;;     (magit   "4.3")
-;;     (org     "9.7")
-;;     (orgit   "2.0"))
+;; Package-Requires: ((emacs  "29.1") (compat "30.1") (magit "4.3") (org "9.7") (orgit "2.0"))
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -153,6 +148,9 @@ The first submatch of REMOTE-REGEXP must match the repository
 identifier.  The template must contain %n (repository name),
 %r (revision), and %f (file path).
 
+Line numbers or ranges are automatically appended as URL fragments
+in the format #L43 or #L43-L58 after the template is expanded.
+
 This can be overridden per-repository using:
     git config orgit.file http://example.com/repo/blob/%r/%f"
   :group 'orgit-file
@@ -233,13 +231,20 @@ PATH format: REPO::REV::FILE-PATH or REPO::REV::FILE-PATH::SEARCH
 
 Navigate to the specified file at the given revision in the
 repository.  If SEARCH is provided, search for that string or
-pattern in the file after opening."
-  (pcase-let* ((`(,repo ,rev ,file-path ,search-option)
+pattern in the file after opening.  If SEARCH is a line number
+or line range, jump to that line."
+  (pcase-let* ((`(,repo ,rev ,file-path ,search-option ,line-start ,_line-end)
                 (orgit-file--parse-path path))
                (default-directory (orgit--repository-directory repo)))
     (magit-find-file rev file-path)
     (when search-option
-      (org-link-search search-option))))
+      (if line-start
+          ;; Jump to line number
+          (progn
+            (goto-char (point-min))
+            (forward-line (1- line-start)))
+        ;; Use Org's search mechanism for other patterns
+        (org-link-search search-option)))))
 
 ;;;###autoload
 (defun orgit-file-export (path desc format)
@@ -251,9 +256,12 @@ Use `orgit-file-export-alist' to generate web URLs for known Git
 hosting services.  The remote used is determined by `orgit-remote'
 or the Git variable `orgit.remote'.
 
+If PATH includes a line number or range, append appropriate fragment
+identifier to the URL (e.g., #L43 or #L43-L58 for GitHub).
+
 Return formatted link for FORMAT, or signal `org-link-broken' if
 the URL cannot be determined."
-  (pcase-let* ((`(,repo ,rev ,file-path ,_search-option)
+  (pcase-let* ((`(,repo ,rev ,file-path ,_search-option ,line-start ,line-end)
                 (orgit-file--parse-path path))
                (dir (orgit--repository-directory repo)))
     (if (file-exists-p dir)
@@ -277,7 +285,14 @@ the URL cannot be determined."
                                            `((?n . ,(match-string 1 url))
                                              (?r . ,rev)
                                              (?f . ,file-path)))))))
-                  (orgit--format-export link desc format)
+                  (let ((link-with-lines
+                         (if line-start
+                             (concat link
+                                     (if (and line-end (not (= line-start line-end)))
+                                         (format "#L%d-L%d" line-start line-end)
+                                       (format "#L%d" line-start)))
+                           link)))
+                    (orgit--format-export link-with-lines desc format))
                 (signal 'org-link-broken
                         (list (format "Cannot determine public url for %s"
                                       path))))
@@ -309,14 +324,34 @@ then a file from that revision.  Return a complete orgit-file link."
 
 PATH format: REPO::REV::FILE-PATH or REPO::REV::FILE-PATH::SEARCH
 
-Return (REPO REV FILE-PATH SEARCH-OPTION) as a list."
+SEARCH can be:
+- A line number (integer as string like \"43\")
+- A line range (\"43-58\")
+- Any other Org search string (heading, custom ID, regex)
+
+Return (REPO REV FILE-PATH SEARCH-OPTION LINE-START LINE-END) as a list.
+LINE-START and LINE-END are integers when SEARCH-OPTION is a line
+number or range, nil otherwise."
   (let* ((parts (split-string path "::" t))
          (repo (nth 0 parts))
          (rev (nth 1 parts))
          (file-path (nth 2 parts))
-         (search-option (nth 3 parts)))
-    (list repo rev file-path search-option)))
+         (search-option (nth 3 parts))
+         (line-start nil)
+         (line-end nil))
+    (when search-option
+      (cond
+       ;; Line range: "43-58"
+       ((string-match "\\`\\([0-9]+\\)-\\([0-9]+\\)\\'" search-option)
+        (setq line-start (string-to-number (match-string 1 search-option))
+              line-end (string-to-number (match-string 2 search-option))))
+       ;; Single line: "43"
+       ((string-match "\\`\\([0-9]+\\)\\'" search-option)
+        (setq line-start (string-to-number (match-string 1 search-option))
+              line-end line-start))))
+    (list repo rev file-path search-option line-start line-end)))
 
+;;; _
 (provide 'orgit-file)
 ;; Local Variables:
 ;; indent-tabs-mode: nil
