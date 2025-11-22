@@ -132,7 +132,7 @@ nil   Never create orgit-file links, instead allow file: links."
      "https://github.com/%n/blob/%r/%f")
     ("gitlab.com[:/]\\(.+?\\)\\(?:\\.git\\)?$"
      "https://gitlab.com/%n/-/blob/%r/%f")
-    ("codeberg.org\\(/\\|:git@\\)\\(.+?\\)\\(?:\\.git\\)?$"
+    ("codeberg.org[/:@]\\(.+?\\)\\(?:\\.git\\)?$"
      "https://codeberg.org/%n/src/commit/%r/%f")
     ("git.sr.ht[:/]\\(.+?\\)\\(?:\\.git\\)?$"
      "https://git.sr.ht/%n/tree/%r/item/%f")
@@ -256,6 +256,10 @@ Use `orgit-file-export-alist' to generate web URLs for known Git
 hosting services.  The remote used is determined by `orgit-remote'
 or the Git variable `orgit.remote'.
 
+Revisions are automatically expanded to full 40-character hashes
+before URL generation to ensure compatibility with hosting services
+that require full hashes (e.g., Codeberg).
+
 If PATH includes a line number or range, append appropriate fragment
 identifier to the URL (e.g., #L43 or #L43-L58 for GitHub).
 
@@ -266,15 +270,19 @@ the URL cannot be determined."
                (dir (orgit--repository-directory repo)))
     (if (file-exists-p dir)
         (let* ((default-directory dir)
+               ;; Expand revision to full hash for URL compatibility
+               (full-rev (condition-case nil
+                             (magit-rev-parse rev)
+                           (error rev)))
                (remotes (magit-git-lines "remote"))
                (remote  (magit-get "orgit.remote"))
                (remote  (cond ((length= remotes 1) (car remotes))
                               ((member remote remotes) remote)
-                              ((member "origin" remotes) "origin"))))
+                              ((member orgit-remote remotes) orgit-remote))))
           (if remote
               (if-let ((link
                         (or (and-let* ((url (magit-get "orgit" "file")))
-                              (format-spec url `((?r . ,rev)
+                              (format-spec url `((?r . ,full-rev)
                                                  (?f . ,file-path))))
                             (and-let* ((url (magit-get "remote" remote "url"))
                                        (template (cl-find-if
@@ -283,7 +291,7 @@ the URL cannot be determined."
                                                   orgit-file-export-alist)))
                               (format-spec (nth 1 template)
                                            `((?n . ,(match-string 1 url))
-                                             (?r . ,rev)
+                                             (?r . ,full-rev)
                                              (?f . ,file-path)))))))
                   (let ((link-with-lines
                          (if line-start
