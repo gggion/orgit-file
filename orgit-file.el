@@ -192,6 +192,7 @@ which always uses Org's search mechanism regardless of this setting."
                              :export   #'orgit-file-export
                              :complete #'orgit-file-complete-link)))
 
+;;;; Helper Functions
 (defun orgit-file--url-encode-text-fragment (text)
   "Encode TEXT for use in URL text fragment.
 
@@ -214,6 +215,45 @@ proper parsing and matching across different browsers."
                           ?\( ?\) ?. ?~ ?\s))))
     (url-hexify-string text allowed-chars)))
 
+(defun orgit-file--detect-search-option ()
+  "Detect appropriate search option from active region.
+
+When region is active, return one of:
+- Line number string \"N\" if single complete line selected
+- Line range string \"N-M\" if multiple complete lines selected
+- Selected text if partial line selection
+
+Return nil if no region is active.
+
+Complete line selection means region starts at beginning of line
+and ends at beginning of next line (or end of buffer).  This
+matches the behavior of `evil-visual-line' and similar line-wise
+selection modes."
+  (when (use-region-p)
+    (let ((beg (region-beginning))
+          (end (region-end)))
+      (save-excursion
+        (goto-char beg)
+        (let ((beg-at-bol (bolp))
+              (beg-line (line-number-at-pos beg)))
+          (goto-char end)
+          (let ((end-at-bol (bolp))
+                (end-line (line-number-at-pos end)))
+            ;; Check if selection spans complete lines
+            (if (and beg-at-bol end-at-bol)
+                ;; Complete line(s) selected
+                (let ((last-line (if (= end (point-max))
+                                     end-line
+                                   (1- end-line))))
+                  (if (= beg-line last-line)
+                      ;; Single line
+                      (number-to-string beg-line)
+                    ;; Multiple lines
+                    (format "%d-%d" beg-line last-line)))
+              ;; Partial line selection - use text as search string
+              (buffer-substring-no-properties beg end))))))))
+
+;;;; Main Functions
 ;;;###autoload
 (defun orgit-file-store (&optional interactive?)
   "Store a link to the file in a Magit file or blob buffer.
@@ -222,6 +262,15 @@ The link includes the repository, revision, and file path.
 
 When in a `magit-blob-mode' buffer (viewing a historical
 revision), store a link to that specific revision.
+
+When the region is active, automatically append a search option:
+
+- If the region spans complete lines (from beginning to end of
+  line), append line number or range.  Single line becomes ::N,
+  multiple lines become ::N-M.
+
+- If the region contains partial line selection, append the
+  selected text as a search string ::TEXT.
 
 The behavior is controlled by `orgit-file-link-to-file-use-orgit'.
 When that variable is nil or doesn't match the current context,
@@ -261,8 +310,12 @@ Return non-nil if a link was stored, nil otherwise."
                      (rev-for-link (if orgit-file-abbreviate-revisions
                                        (magit-rev-abbrev rev)
                                      rev))
-                     (link (format "orgit-file:%s::%s::%s"
-                                   repo-id rev-for-link file)))
+                     (search-option (orgit-file--detect-search-option))
+                     (link (if search-option
+                               (format "orgit-file:%s::%s::%s::%s"
+                                       repo-id rev-for-link file search-option)
+                             (format "orgit-file:%s::%s::%s"
+                                     repo-id rev-for-link file))))
                 (org-link-store-props
                  :type "orgit-file"
                  :link link)
