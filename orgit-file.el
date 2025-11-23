@@ -297,10 +297,13 @@ Return non-nil if a link was stored, nil otherwise."
                        interactive?)
                   (and (eq orgit-file-link-to-file-use-orgit 'use-existing)
                        in-magit-context))
-          (let ((file (or (and (bound-and-true-p magit-blob-mode)
-                               magit-buffer-file-name)
-                          (and buffer-file-name
-                               (magit-file-relative-name))))
+          (let ((file (cond
+                       ;; In blob buffers, use magit-buffer-file-name with magit-file-relative-name
+                       ((bound-and-true-p magit-blob-mode)
+                        (magit-file-relative-name magit-buffer-file-name))
+                       ;; In regular file buffers, use buffer-file-name with magit-file-relative-name
+                       (buffer-file-name
+                        (magit-file-relative-name buffer-file-name))))
                 (rev (or (and (bound-and-true-p magit-blob-mode)
                               magit-buffer-revision)
                          (and buffer-file-name
