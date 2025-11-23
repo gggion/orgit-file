@@ -20,10 +20,10 @@ The ~orgit-file~ link type takes this form:
                   │repository│ │         │       │
                   ╰───△──────╯ │         │   ╔═══▼══════:OPTIONAL:═══════════╗
                       |        │         │   ║       org search string       ║
-                      | ╭──────▼─────╮   │   ║( heading, line number, regex )║
-                      | │commit hash,│   │   ╚════════════════△══════════════╝
-                      | │branch name │   │                    |
-                      | │   or tag   │   │                    |
+                      | ╭──────▼─────╮   │   ║ STRING ie ::defun(test-fun... ║
+                      | │commit hash,│   │   ║ LINE   ie ::120               ║
+                      | │branch name │   │   ║ RANGE  ie ::10-30             ║
+                      | │   or tag   │   │   ╚════════════════△══════════════╝
                       | ╰──────△─────╯   │                    |
                       |        | ╭───────▼─────╮              |
                       |        | │relative path│              |
@@ -33,14 +33,28 @@ The ~orgit-file~ link type takes this form:
                       |        |         |                    |
           ╭───────────┴─────╮╭─┴──────╮╭─┴───────────╮        |
 orgit-file:~/code/orgit-file::pef662d3::orgit-file.el╵╭───────┴───────────────╮
-orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::(defun orgit-file-store
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::(defun orgit-file-store│
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::120                    │
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::100-120                │
+                                                      ╰───────────────────────╯
 #+end_src
 
 Where:
 - ~REPO~ identifies the repository (path or name from ~magit-repository-directories~)
 - ~REV~ is a commit hash, branch name, or tag
 - ~FILE-PATH~ is the relative path within the repository
-- ~SEARCH~ (optional) is an Org search string (heading, line number, regex)
+- ~SEARCH~ (optional) is an Org search string (string, line number, range)
+
+** Search Options
+The optional SEARCH component supports three formats:
+
+- Line numbers: ~::43~ jumps to line 43
+- Line ranges: ~::43-58~ highlights lines 43 through 58
+- Text patterns: ~::(defun orgit-file-store~ searches for that text
+
+When exporting, line numbers become ~#L43~ or ~#L43-L58~ URL fragments.
+Text patterns export as ~#:~:text=~ fragments when
+~orgit-file-export-text-fragments~ is non-nil.
 
 * Examples
 #+begin_src text
@@ -64,7 +78,6 @@ https://github.com/gggion/orgit-file/blob/ef662d3/orgit-file.el
 https://github.com/gggion/orgit-file/blob/8a36edd/orgit-file.el
 https://github.com/gggion/orgit-file/blob/ef662d3/orgit-file.el
 #+end_src
-
 * Storage Behavior
 
 Link creation is controlled by ~orgit-file-link-to-file-use-orgit~:
@@ -83,6 +96,16 @@ Revision format is controlled by ~orgit-file-abbreviate-revisions~:
 - ~t~ :: Use abbreviated hashes (7-8 characters)
 - ~nil~ :: Use full 40-character SHA-1 hashes (default, more stable)
 
+** Automatic Search Option Detection
+
+When storing links with an active region, ~orgit-file-store~ automatically
+appends search options:
+
+- Complete line selection (from ~bolp~ to ~bolp~) generates line numbers
+- Single complete line: ~::43~
+- Multiple complete lines: ~::43-58~
+- Partial line selection: Uses selected text as search pattern
+
 * Export
 
 When exporting Org files containing ~orgit-file~ links, the package generates web
@@ -95,6 +118,19 @@ services:
 - Codeberg
 - SourceHut
 - Bitbucket
+
+** Text Fragment Export
+
+When ~orgit-file-export-text-fragments~ is non-nil, links with text search
+patterns (not line numbers) export with =#:~:text== URL fragments. This
+enables browsers to scroll to and highlight matching text.
+
+#+begin_quote
+[!NOTE]
+Text fragments are part of the WICG Text Fragments specification, which is currently supported by Chromium-based browsers (Chrome, Edge, Brave) and Safari. Firefox support is in development but it's possible to enable it through [[https://addons.mozilla.org/en-US/firefox/addon/text-fragment][extensions]]. Browsers without support ignore the fragment.
+#+end_quote
+
+Line numbers and ranges always take precedence over text fragments during export.
 
 ** Per-Repository Configuration
 
@@ -191,6 +227,9 @@ Clone the repository and add to your load path:
 
   ;; Create orgit-file links when storing from file buffers
   (orgit-file-link-to-file-use-orgit 'create-if-interactive)
+
+  ;; Enable text fragment export for browsers that support it
+  (orgit-file-export-text-fragments t)
 
   ;; Store repository names instead of full paths
   ;; Requires repositories in magit-repository-directories
