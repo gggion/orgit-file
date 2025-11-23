@@ -62,6 +62,7 @@ Text patterns export as ~#:~:text=~ fragments when
 [[orgit-file:~/project/::main::src/core.el]]
 [[orgit-file:~/project/::v1.0.0::src/core.el::(defun test-func]]
 [[orgit-file:my-repo::HEAD::README.org::10]]
+[[orgit-file:my-repo::HEAD::README.org::10-30]]
 #+end_src
 
 Specific to this repo
@@ -82,10 +83,10 @@ https://github.com/gggion/orgit-file/blob/ef662d3/orgit-file.el
 
 Link creation is controlled by ~orgit-file-link-to-file-use-orgit~:
 
-- ~t~ :: Always create ~orgit-file~ links in Git repositories
-- ~create-if-interactive~ :: Create only when ~org-store-link~ called interactively
-- ~use-existing~ :: Only in ~magit-blob-mode~ and other Magit contexts
-- ~nil~ :: Never create ~orgit-file~ links (allows ~file:~ fallback)
+| ~t~                     | Always create ~orgit-file~ links in Git repositories    |
+| ~create-if-interactive~ | Create only when ~org-store-link~ called interactively  |
+| ~use-existing~          | Only in ~magit-blob-mode~ and other Magit contexts      |
+| ~nil~                   | Never create ~orgit-file~ links (allows ~file:~ fallback) |
 
 When storing links:
 - In ~magit-blob-mode~ buffers: stores link to displayed revision
@@ -93,8 +94,8 @@ When storing links:
 - With ~C-u~ prefix: skips ~orgit-file~ storage, falls back to ~file:~ links
 
 Revision format is controlled by ~orgit-file-abbreviate-revisions~:
-- ~t~ :: Use abbreviated hashes (7-8 characters)
-- ~nil~ :: Use full 40-character SHA-1 hashes (default, more stable)
+| ~t~   | Use abbreviated hashes (7-8 characters)                   |
+| ~nil~ | Use full 40-character SHA-1 hashes (default, more stable) |
 
 ** Automatic Search Option Detection
 
