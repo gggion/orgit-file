@@ -213,6 +213,36 @@ argument, prompt for format interactively."
                              :complete #'orgit-file-complete-link)))
 
 ;;;; Helper Functions
+(defun orgit-file--format-line-fragment (url line-start line-end)
+  "Format line number fragment for URL based on hosting service.
+
+URL is the base URL without fragment.  LINE-START and LINE-END are
+integers representing the line range.  If LINE-END equals LINE-START,
+format as single line.
+
+Different hosting services use different fragment syntaxes:
+- GitHub, GitLab, Codeberg: #L43-L58
+- Sourcehut: #L43-58
+- Bitbucket: #lines-43:58
+
+Return fragment string including leading #."
+  (cond
+   ;; Bitbucket uses #lines-43:58 format
+   ((string-match-p "bitbucket\\.org" url)
+    (if (and line-end (not (= line-start line-end)))
+        (format "#lines-%d:%d" line-start line-end)
+      (format "#lines-%d" line-start)))
+   ;; Sourcehut uses #L43-58 format (no L prefix on end line)
+   ((string-match-p "git\\.sr\\.ht" url)
+    (if (and line-end (not (= line-start line-end)))
+        (format "#L%d-%d" line-start line-end)
+      (format "#L%d" line-start)))
+   ;; GitHub, GitLab, Codeberg use #L43-L58 format
+   (t
+    (if (and line-end (not (= line-start line-end)))
+        (format "#L%d-L%d" line-start line-end)
+      (format "#L%d" line-start)))))
+
 (defun orgit-file--url-encode-text-fragment (text)
   "Encode TEXT for use in URL text fragment.
 
@@ -381,7 +411,10 @@ before URL generation to ensure compatibility with hosting services
 that require full hashes (e.g., Codeberg).
 
 If PATH includes a line number or range, append appropriate fragment
-identifier to the URL (e.g., #L43 or #L43-L58 for GitHub).
+identifier to the URL.  Fragment syntax varies by hosting service:
+- GitHub, GitLab, Codeberg use #L43-L58
+- Sourcehut uses #L43-58
+- Bitbucket uses #lines-43:58
 
 If PATH includes a text search pattern (not a line number) and
 `orgit-file-export-text-fragments' is non-nil, append a text fragment
@@ -423,9 +456,8 @@ the URL cannot be determined."
                           ;; Line number or range takes precedence
                           (line-start
                            (concat link
-                                   (if (and line-end (not (= line-start line-end)))
-                                       (format "#L%d-L%d" line-start line-end)
-                                     (format "#L%d" line-start))))
+                                   (orgit-file--format-line-fragment
+                                    link line-start line-end)))
                           ;; Text search pattern when enabled
                           ((and search-option
                                 orgit-file-export-text-fragments)
@@ -439,7 +471,7 @@ the URL cannot be determined."
                         (list (format "Cannot determine public url for %s"
                                       path))))
             (signal 'org-link-broken
-                    (list (format "Cannot determine public remote for %s"
+                    (list (format "Cannot determine public url for %s"
                                   default-directory)))))
       (signal 'org-link-broken
               (list (format "Cannot determine public url for %s %s"
