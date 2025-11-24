@@ -73,6 +73,7 @@
 
 (require 'compat)
 (require 'orgit)
+(require 'org-element)
 
 (eval-when-compile (require 'subr-x))
 
@@ -178,6 +179,28 @@ which always uses Org's search mechanism regardless of this setting."
   :group 'orgit-file
   :type 'boolean
   :package-version '(orgit-file . "0.2.0"))
+
+(defcustom orgit-file-export-preview-format 'url-only
+  "Default export format for `orgit-file-export-link-at-point'.
+
+Valid values are symbols corresponding to Org export backends:
+  `html'     - Export as HTML link
+  `md'       - Export as Markdown link
+  `latex'    - Export as LaTeX link
+  `ascii'    - Export as plain text
+  `url-only' - Export URL only without markup
+
+When `orgit-file-export-link-at-point' is called with a prefix
+argument, prompt for format interactively."
+  :group 'orgit-file
+  :type '(choice
+          (const :tag "HTML link" html)
+          (const :tag "Markdown link" md)
+          (const :tag "LaTeX link" latex)
+          (const :tag "Plain text" ascii)
+          (const :tag "URL only" url-only))
+  :package-version '(orgit-file . "0.3.0"))
+
 ;;; File links
 
 ;;;###autoload
@@ -476,6 +499,78 @@ number or range, nil otherwise."
         (setq line-start (string-to-number (match-string 1 search-option))
               line-end line-start))))
     (list repo rev file-path search-option line-start line-end)))
+
+;;;###autoload
+(defun orgit-file-export-link-at-point (&optional format)
+  "Export orgit-file link at point and copy result to kill ring.
+
+Find the orgit-file link at point (or in active region if region
+is active), export it according to FORMAT, and copy the result to
+the kill ring.
+
+FORMAT determines the export style:
+  `html'     - HTML anchor tag: <a href=\"URL\">DESC</a>
+  `md'       - Markdown link: [DESC](URL)
+  `latex'    - LaTeX hyperref: \\href{URL}{DESC}
+  `ascii'    - Plain text: DESC (URL)
+  `url-only' - Just the URL without any markup
+
+When called interactively without prefix argument, use
+`orgit-file-export-preview-format'.  With prefix argument, prompt
+for format.
+
+Display the exported result in the echo area and add it to the
+kill ring for yanking.
+
+Signal `user-error' if no orgit-file link is found at point or in
+region."
+  (interactive
+   (list (if current-prefix-arg
+           (intern (completing-read
+                      "Export format: "
+                      '("html" "md" "latex" "ascii" "url-only")
+                      nil t nil nil
+                      (symbol-name orgit-file-export-preview-format)))
+           orgit-file-export-preview-format)))
+  (let* ((format (or format orgit-file-export-preview-format))
+         (element (if (org-region-active-p)
+           ;; Parse region for link
+           (save-excursion
+         (goto-char (region-beginning))
+         (org-element-link-parser))
+                    ;; Parse link at point
+                    (org-element-lineage (org-element-context) 'link t)))
+         (type (org-element-property :type element))
+         ;; Extract path without "orgit-file:" prefix
+         (path (org-element-property :path element))
+         (desc (when (org-element-contents element)
+                 (org-element-interpret-data
+                  (org-element-contents element)))))
+    (unless (and element (equal type "orgit-file"))
+      (user-error "No orgit-file link at point"))
+    ;; Create a minimal info plist for export
+    (let* ((url (orgit-file-export path desc format))
+           (result
+            (pcase format
+              ('url-only
+               ;; Extract just the URL from exported result
+               (cond
+                ((string-match "href=[\"']\\([^\"']+\\)[\"']" url)
+                 (match-string 1 url))
+                ((string-match "](\\([^)]+\\))" url)
+                 (match-string 1 url))
+                ((string-match "{\\([^}]+\\)}" url)
+                 (match-string 1 url))
+                (t url)))
+              (_ url))))
+      ;; Copy to kill ring
+      (kill-new result)
+      ;; Display result
+      (message "Exported link copied to kill ring: %s"
+               (if (> (length result) 100)
+           (concat (substring result 0 97) "...")
+         result))
+      result)))
 
 ;;; _
 (provide 'orgit-file)
