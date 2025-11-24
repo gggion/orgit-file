@@ -104,28 +104,32 @@ tools."
 
 The variable can have the following values:
 
-t     Always create an orgit-file link when in a Git repository.
+prefix-to-disable
+      Always create orgit-file links when in a Git repository,
+      unless `org-store-link' is called with a prefix argument.
 
-create-if-interactive
-      If `org-store-link' is called directly (interactively, as a user
-      command), create an orgit-file link.  But when doing the job for
-      capture or other non-interactive callers, only use orgit-file if
-      explicitly requested.
-
-use-existing
-      Only create orgit-file links in magit-specific contexts (like
-      `magit-blob-mode').  Regular file buffers will fall back to file:
+prefix-to-enable
+      Only create orgit-file links when `org-store-link' is called
+      with a prefix argument.  Without prefix, fall back to file:
       links.
 
-nil   Never create orgit-file links, instead allow file: links."
+blob-buffers-only
+      Only create orgit-file links in `magit-blob-mode' buffers
+      (when viewing historical file revisions).  Regular file
+      buffers will fall back to file: links.
+
+nil   Never create orgit-file links automatically.  Users can still
+      call `orgit-file-store' interactively to create orgit-file
+      links explicitly."
   :group 'orgit-file
   :type '(choice
-          (const :tag "Always use orgit-file links in Git repos" t)
-          (const :tag "Create if storing link interactively"
-                 create-if-interactive)
-          (const :tag "Only in magit contexts" use-existing)
-          (const :tag "Never use orgit-file links" nil))
-  :package-version '(orgit-file . "0.1.0"))
+          (const :tag "Always use orgit-file links (C-u to disable)"
+                 prefix-to-disable)
+          (const :tag "Only with prefix argument (C-u to enable)"
+                 prefix-to-enable)
+          (const :tag "Only in magit-blob-mode buffers" blob-buffers-only)
+          (const :tag "Never use orgit-file links automatically" nil))
+  :package-version '(orgit-file . "0.2.0"))
 
 (defcustom orgit-file-export-alist
   `(("github.com[:/]\\(.+?\\)\\(?:\\.git\\)?$"
@@ -304,7 +308,7 @@ matches the behavior of similar line-wise selection modes."
 
 ;;;; Main Functions
 ;;;###autoload
-(defun orgit-file-store (&optional interactive?)
+(defun orgit-file-store ()
   "Store a link to the file in a Magit file or blob buffer.
 
 The link includes the repository, revision, and file path.
@@ -321,57 +325,91 @@ When the region is active, automatically append a search option:
 - If the region contains partial line selection, append the
   selected text as a search string ::TEXT.
 
-The behavior is controlled by `orgit-file-link-to-file-use-orgit'.
-When that variable is nil or doesn't match the current context,
-return nil to allow file: links as an alternative.
+The behavior is controlled by `orgit-file-link-to-file-use-orgit':
+
+- When `prefix-to-disable', always create orgit-file links in Git
+  repositories unless called with prefix argument.
+
+- When `prefix-to-enable', only create orgit-file links when
+  called with prefix argument.
+
+- When `blob-buffers-only', only create links in `magit-blob-mode'
+  buffers.
+
+- When nil, never create links automatically (but this function
+  can still be called interactively).
 
 The revision format in the link is controlled by
 `orgit-file-abbreviate-revisions'.  When non-nil, use abbreviated
 hashes; when nil, use full 40-character hashes.
 
-With a `\\[universal-argument]' prefix argument, skip storing
-orgit-file link and allow fallback to file: link instead.
+When called interactively, always attempt to store an orgit-file
+link, ignoring the `orgit-file-link-to-file-use-orgit' setting.
+This allows users to explicitly request orgit-file links even when
+automatic storage is disabled.
 
-Argument INTERACTIVE? indicates whether `org-store-link' was
-called interactively.
+When called non-interactively (from `org-store-link'), prefix
+argument behavior depends on the setting:
+
+- If `orgit-file-link-to-file-use-orgit' is `prefix-to-disable' or
+  `blob-buffers-only', prefix argument prevents storing orgit-file
+  link.
+
+- If `orgit-file-link-to-file-use-orgit' is `prefix-to-enable',
+  prefix argument is required to store orgit-file link.
 
 Return non-nil if a link was stored, nil otherwise."
+  (interactive)
   (when-let* ((repo (magit-toplevel)))
-    ;; Skip if prefix arg given
-    (unless current-prefix-arg
-      (let ((in-magit-context (or (bound-and-true-p magit-blob-mode)
-                                  (derived-mode-p 'magit-mode))))
-        (when (or (eq orgit-file-link-to-file-use-orgit t)
-                  (and (eq orgit-file-link-to-file-use-orgit 'create-if-interactive)
-                       interactive?)
-                  (and (eq orgit-file-link-to-file-use-orgit 'use-existing)
-                       in-magit-context))
-          (let ((file (cond
-                       ;; In blob buffers, use magit-buffer-file-name with magit-file-relative-name
-                       ((bound-and-true-p magit-blob-mode)
-                        (magit-file-relative-name magit-buffer-file-name))
-                       ;; In regular file buffers, use buffer-file-name with magit-file-relative-name
-                       (buffer-file-name
-                        (magit-file-relative-name buffer-file-name))))
-                (rev (or (and (bound-and-true-p magit-blob-mode)
-                              magit-buffer-revision)
-                         (and buffer-file-name
-                              (magit-rev-parse "HEAD")))))
-            (when (and file rev)
-              (let* ((repo-id (orgit--current-repository))
-                     (rev-for-link (if orgit-file-abbreviate-revisions
-                                       (magit-rev-abbrev rev)
-                                     rev))
-                     (search-option (orgit-file--detect-search-option))
-                     (link (if search-option
-                               (format "orgit-file:%s::%s::%s::%s"
-                                       repo-id rev-for-link file search-option)
-                             (format "orgit-file:%s::%s::%s"
-                                     repo-id rev-for-link file))))
-                (org-link-store-props
-                 :type "orgit-file"
-                 :link link)
-                t))))))))
+    (let* ((in-blob-buffer (bound-and-true-p magit-blob-mode))
+           (called-interactively (called-interactively-p 'interactive))
+           (has-prefix current-prefix-arg)
+           (should-store
+            (cond
+             ;; When called interactively, always try to store
+             (called-interactively t)
+             ;; When called from org-store-link, check settings
+             (t
+              (cond
+               ;; Skip if prefix arg given (only applies to prefix-to-disable and blob-buffers-only)
+               ((and has-prefix
+                     (memq orgit-file-link-to-file-use-orgit
+                           '(prefix-to-disable blob-buffers-only)))
+                nil)
+               ((eq orgit-file-link-to-file-use-orgit 'prefix-to-enable)  has-prefix)
+               ((eq orgit-file-link-to-file-use-orgit 'prefix-to-disable) t)
+               ((eq orgit-file-link-to-file-use-orgit 'blob-buffers-only) in-blob-buffer)
+               ;; nil: don't store
+               (t nil))))))
+      (when should-store
+        (let ((file (cond
+                     ;; In blob buffers, use magit-buffer-file-name with magit-file-relative-name
+                     ((bound-and-true-p magit-blob-mode)
+                      (magit-file-relative-name magit-buffer-file-name))
+                     ;; In regular file buffers, use buffer-file-name with magit-file-relative-name
+                     (buffer-file-name
+                      (magit-file-relative-name buffer-file-name))))
+              (rev (or (and (bound-and-true-p magit-blob-mode)
+                            magit-buffer-revision)
+                       (and buffer-file-name
+                            (magit-rev-parse "HEAD")))))
+          (when (and file rev)
+            (let* ((repo-id (orgit--current-repository))
+                   (rev-for-link (if orgit-file-abbreviate-revisions
+                                     (magit-rev-abbrev rev)
+                                   rev))
+                   (search-option (orgit-file--detect-search-option))
+                   (link (if search-option
+                             (format "orgit-file:%s::%s::%s::%s"
+                                     repo-id rev-for-link file search-option)
+                           (format "orgit-file:%s::%s::%s"
+                                   repo-id rev-for-link file))))
+              (org-link-store-props
+               :type "orgit-file"
+               :link link)
+              (when called-interactively
+                (message "Stored: %s" link))
+              t)))))))
 
 ;;;###autoload
 (defun orgit-file-open (path)
@@ -558,7 +596,7 @@ Signal `user-error' if no orgit-file link is found at point or in
 region."
   (interactive
    (list (if current-prefix-arg
-           (intern (completing-read
+             (intern (completing-read
                       "Export format: "
                       '("html" "md" "latex" "ascii" "url-only")
                       nil t nil nil
@@ -566,10 +604,10 @@ region."
            orgit-file-export-preview-format)))
   (let* ((format (or format orgit-file-export-preview-format))
          (element (if (org-region-active-p)
-           ;; Parse region for link
-           (save-excursion
-         (goto-char (region-beginning))
-         (org-element-link-parser))
+                      ;; Parse region for link
+                      (save-excursion
+                        (goto-char (region-beginning))
+                        (org-element-link-parser))
                     ;; Parse link at point
                     (org-element-lineage (org-element-context) 'link t)))
          (type (org-element-property :type element))
@@ -600,8 +638,8 @@ region."
       ;; Display result
       (message "Exported link copied to kill ring: %s"
                (if (> (length result) 100)
-           (concat (substring result 0 97) "...")
-         result))
+                   (concat (substring result 0 97) "...")
+                 result))
       result)))
 
 ;;; _
