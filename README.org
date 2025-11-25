@@ -1,169 +1,80 @@
-#+title: orgit-file
-#+PROPERTY: LOGGING nil
-#+OPTIONS: ^:nil
-* Link to Git file revisions from Org documents
-
-This package defines the ~orgit-file~ link type, which links to specific file
-versions in Git repositories. Use the command ~org-store-link~ in a file buffer or
-~magit-blob-mode~ buffer to store a link. Later you can insert it into an Org
-buffer using the command ~org-insert-link~.
-
-* Format
-
-The ~orgit-file~ link type takes this form:
-
-#+begin_src text
-            orgit-file:REPO::REV::FILE-PATH::SEARCH
-            orgit-file:REPO::REV::FILE-PATH ╰────┬─╯
-                      ╰┬───╯╰──┬╯╰───────┬─╯     │
-                  ╭───╴▼╶────╮ │         │       │
-                  │repository│ │         │       │
-                  ╰───△──────╯ │         │   ╔═══▼══════:OPTIONAL:═══════════╗
-                      |        │         │   ║       org search string       ║
-                      | ╭──────▼─────╮   │   ║ STRING ie ::defun(test-fun... ║
-                      | │commit hash,│   │   ║ LINE   ie ::120               ║
-                      | │branch name │   │   ║ RANGE  ie ::10-30             ║
-                      | │   or tag   │   │   ╚════════════════△══════════════╝
-                      | ╰──────△─────╯   │                    |
-                      |        | ╭───────▼─────╮              |
-                      |        | │relative path│              |
-                      |        | │to repository│              |
-                      |        | ╰───────△─────╯              |
-                      |        |         |                    |
-                      |        |         |                    |
-          ╭───────────┴─────╮╭─┴──────╮╭─┴───────────╮        |
-orgit-file:~/code/orgit-file::pef662d3::orgit-file.el╵╭───────┴───────────────╮
-orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::(defun orgit-file-store│
-orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::120                    │
-orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::100-120                │
-                                                      ╰───────────────────────╯
-#+end_src
-
-Where:
-- ~REPO~ identifies the repository (path or name from ~magit-repository-directories~)
-- ~REV~ is a commit hash, branch name, or tag
-- ~FILE-PATH~ is the relative path within the repository
-- ~SEARCH~ (optional) is an Org search string (string, line number, range)
-
-** Search Options
-The optional SEARCH component supports three formats:
-
-- Line numbers: ~::43~ jumps to line 43
-- Line ranges: ~::43-58~ highlights lines 43 through 58
-- Text patterns: ~::(defun orgit-file-store~ searches for that text
-
-When exporting, line numbers become ~#L43~ or ~#L43-L58~ URL fragments.
-Text patterns export as ~#:~:text=~ fragments when
-~orgit-file-export-text-fragments~ is non-nil.
-
-* Examples
-#+begin_src text
-[[orgit-file:~/project/::7f2667d::src/core.el]]
-[[orgit-file:~/project/::main::src/core.el]]
-[[orgit-file:~/project/::v1.0.0::src/core.el::(defun test-func]]
-[[orgit-file:my-repo::HEAD::README.org::10]]
-[[orgit-file:my-repo::HEAD::README.org::10-30]]
-#+end_src
-
-Specific to this repo
-orgit-file across multiple commits
-#+begin_example
-[[orgit-file:~/CODE/0-EMACS/emacs-packages/orgit-file/::ef662d3::orgit-file.el]]
-[[orgit-file:~/CODE/0-EMACS/emacs-packages/orgit-file/::8a36edd::orgit-file.el]]
-[[orgit-file:~/CODE/0-EMACS/emacs-packages/orgit-file/::ef662d3::orgit-file.el]]
-#+end_example
-
-Exported links
-#+begin_src
-https://github.com/gggion/orgit-file/blob/ef662d3/orgit-file.el
-https://github.com/gggion/orgit-file/blob/8a36edd/orgit-file.el
-https://github.com/gggion/orgit-file/blob/ef662d3/orgit-file.el
-#+end_src
-* Storage Behavior
-
-Link creation is controlled by ~orgit-file-link-to-file-use-orgit~:
-
-| ~t~                     | Always create ~orgit-file~ links in Git repositories    |
-| ~create-if-interactive~ | Create only when ~org-store-link~ called interactively  |
-| ~use-existing~          | Only in ~magit-blob-mode~ and other Magit contexts      |
-| ~nil~                   | Never create ~orgit-file~ links (allows ~file:~ fallback) |
-
-When storing links:
-- In ~magit-blob-mode~ buffers: stores link to displayed revision
-- In regular file buffers: stores link referencing ~HEAD~
-- With ~C-u~ prefix: skips ~orgit-file~ storage, falls back to ~file:~ links
-
-Revision format is controlled by ~orgit-file-abbreviate-revisions~:
-| ~t~   | Use abbreviated hashes (7-8 characters)                   |
-| ~nil~ | Use full 40-character SHA-1 hashes (default, more stable) |
-
-** Automatic Search Option Detection
-
-When storing links with an active region, ~orgit-file-store~ automatically
-appends search options:
-
-- Complete line selection (from ~bolp~ to ~bolp~) generates line numbers
-- Single complete line: ~::43~
-- Multiple complete lines: ~::43-58~
-- Partial line selection: Uses selected text as search pattern
-
-* Export
-
-When exporting Org files containing ~orgit-file~ links, the package generates web
-URLs using the remote configured with ~orgit-remote~ (defaults to "origin").
-
-URL templates are defined in ~orgit-file-export-alist~ for major Git hosting
-services:
-- GitHub
-- GitLab
-- Codeberg
-- SourceHut
-- Bitbucket
-
-** Text Fragment Export
-
-When ~orgit-file-export-text-fragments~ is non-nil, links with text search
-patterns (not line numbers) export with =#:~:text== URL fragments. This
-enables browsers to scroll to and highlight matching text.
-
+#+TITLE: orgit-file - Revision-aware Org links to files in Git repositories
+#+OPTIONS: d:nil
+#+TEXINFO_DIR_CATEGORY: Emacs misc features
+#+TEXINFO_DIR_TITLE: Orgit-File: (orgit-file).
+#+TEXINFO_DIR_DESC: Link to specific file revisions in Git repositories
 #+begin_quote
-[!NOTE]
-Text fragments are part of the WICG Text Fragments specification, which is currently supported by Chromium-based browsers (Chrome, Edge, Brave) and Safari. Firefox support is in development but it's possible to enable it through [[https://addons.mozilla.org/en-US/firefox/addon/text-fragment][extensions]]. Browsers without support ignore the fragment.
+[!IMPORTANT]
+Version 0.3.0 Released!
 #+end_quote
 
-Line numbers and ranges always take precedence over text fragments during export.
+Orgit-file provides revision-aware Org links to files in Git repositories.
+Unlike standard =file:= links, which point to whatever version happens to exist
+on disk, =orgit-file:= links capture the exact state of a file at a specific
+commit, branch, or tag. The links remain valid even as the repository evolves,
+enabling reproducible references to code that survive refactorings, file moves,
+and history rewrites.
 
-** Per-Repository Configuration
+The package integrates with Magit and Org mode. Store links while browsing
+historical revisions in =magit-blob-mode= or from regular file buffers when in a
+git repo. When exported to HTML, Markdown, or other formats, links transform
+into URLs pointing to GitHub, GitLab, Codeberg, Sourcehut, or Bitbucket,
+complete with line number fragments and text highlighting for browser
+navigation.
 
-Override export behavior using Git variables:
+Orgit-file is minimal and focused: it defines one link type (=orgit-file:=),
+integrates with =org-store-link=, and provides sensible defaults. The behavior
+is fully configurable through standard Emacs customization variables, with no
+custom APIs to learn.
 
-#+begin_src shell
-# Use different remote for public links
-git config orgit.remote upstream
+It is not meant as a replacement for ~file:~ links, but as an alternative
+pointing to an unchanging version of a file or section of a file, which is why
+there are multiple ways of configuring how it'll interact with the default
+~file:~ links.
 
-# Explicitly define file export URL format
-# %r = revision, %f = file path
-git config orgit.file https://git.example.com/repo/blob/%r/%f
-#+end_src
+* Features
 
-** Custom Export Templates
+- Store links to files at specific Git revisions from =magit-blob-mode= buffers or regular file buffers (references =HEAD=)
+- Automatic search option detection: complete line selections become line numbers or ranges, partial selections become text search patterns
+- Export to web URLs for GitHub, GitLab, Codeberg, Sourcehut, and Bitbucket with correct line number fragment syntax for each service
+- Text fragment export (=#:~:text=URL= syntax) enables browser highlighting on Chromium-based browsers and Safari
+- Choose between abbreviated (7-8 character) and full (40 character) SHA-1 hashes in stored links
+- Configure storage behavior: always create =orgit-file:= links, opt-in with prefix argument, or only in =magit-blob-mode= buffers
+- Per-repository Git configuration overrides via =git config orgit.remote= and =git config orgit.file=
+- Export-preview command to copy URLs to kill ring in HTML, Markdown, LaTeX, ASCII, or raw URL format
+- Auto completion for orgit-file links when selecting them through org-store-link
 
-Add templates for unsupported hosting services:
+* Screenshots
 
-#+begin_src elisp
-(add-to-list 'orgit-file-export-alist
-             '("git\\.company\\.com[:/]\\(.+?\\)\\(?:\\.git\\)?$"
-               "https://git.company.com/%n/blob/%r/%f"))
-#+end_src
+[[https://github.com/gggion/orgit-file/blob/screenshots/orgit-file-example-interactive.gif]]
+[[https://github.com/gggion/orgit-file/blob/screenshots/orgit-file-example-line.gif]]
+[[https://github.com/gggion/orgit-file/blob/screenshots/orgit-file-example-line-range.gif]]
+[[https://github.com/gggion/orgit-file/blob/screenshots/orgit-file-example-text.gif]]
 
-Where:
-- ~%n~ :: Repository name (first submatch from regexp)
-- ~%r~ :: Revision (commit hash, branch, or tag)
-- ~%f~ :: File path within repository
+* Contents :noexport:
+:PROPERTIES:
+:TOC:      :include siblings :depth 1 :ignore this
+:END:
+:CONTENTS:
+- [[#installation][Installation]]
+- [[#quick-start][Quick start]]
+- [[#link-format][Link format]]
+- [[#configuration][Configuration]]
+- [[#advanced-configuration][Advanced configuration]]
+- [[#export-behavior][Export behavior]]
+- [[#integration-with-org-and-magit][Integration with Org and Magit]]
+- [[#alternatives][Alternatives]]
+- [[#resources][Resources]]
+- [[#contributing][Contributing]]
+- [[#acknowledgments][Acknowledgments]]
+- [[#license][License]]
+:END:
 
 * Installation
-** Prerequisites
-Requires Emacs 29.1 or later with the following packages:
+:PROPERTIES:
+:CUSTOM_ID: installation
+:END:
+- Prerequisites :: Requires Emacs 29.1 or later with the following packages:
 - ~magit~ (version 4.3+)
 - ~orgit~ (version 2.0+)
 - ~org~ (version 9.7+)
@@ -174,65 +85,622 @@ Verify Magit is configured and can access your Git repositories:
 (magit-status)  ; Should open without errors
 #+end_src
 
-** Manual Installation
-Clone the repository and add to your load path:
+- Manual Installation :: Clone the repository and add to your load path:
 
 #+begin_src elisp
 (add-to-list 'load-path "/path/to/orgit-file")
 (require 'orgit-file)
 #+end_src
 
-** With straight
+- With straight ::
 #+begin_src elisp
 (use-package orgit-file
-  :straight (:host github :repo "gggion/orgit-file")
-  :after (orgit))
+:straight (:host github :repo "gggion/orgit-file")
+:after (orgit))
 #+end_src
 
-** Doom Emacs
+- Doom Emacs :: 
+
 #+begin_src elisp
 ;; packages.el
 (package! orgit-file
-  :recipe (:host github
-           :repo "gggion/orgit-file"
-           :files ("*.el")))
+:recipe (:host github
+:repo "gggion/orgit-file"
+:files ("*.el")))
 
 ;; config.el
 (after! orgit
-    (use-package! orgit-file))
+(use-package! orgit-file))
 #+end_src
+
+* Quick start
+:PROPERTIES:
+:ID:       4a077466-0507-409c-8cfb-ad0f76ca204b
+:CUSTOM_ID: quick-start
+:END:
+
+After installation, activate with:
+
+#+BEGIN_SRC emacs-lisp
+(require 'orgit-file)
+#+END_SRC
+
+Or with =use-package=:
+
+#+BEGIN_SRC emacs-lisp
+(use-package orgit-file
+:ensure t
+:after (orgit))
+#+END_SRC
+
+Open a file in a Git repository, run =M-x orgit-file-store=, then insert the
+link elsewhere with =C-c C-l=. The package works immediately with no further
+configuration.
+
+To verify it works:
+
+1. Open any file in a Git repository
+2. Run =M-x orgit-file-store= 
+3. Switch to an Org buffer
+4. Run =M-x org-insert-link= (or =C-c C-l=)
+5. Select the stored link
+
+You should see an =orgit-file:= link in your Org buffer.
+
+* Link format
+:PROPERTIES:
+:CUSTOM_ID: link-format
+:END:
+#+begin_example
+orgit-file:REPO::REV::FILE-PATH::SEARCH
+orgit-file:REPO::REV::FILE-PATH ╰────┬─╯
+            ╰┬───╯╰──┬╯╰───────┬─╯     │
+        ╭───╴▼╶────╮ │         │       │
+        │repository│ │         │       │
+        ╰───△──────╯ │         │   ╔═══▼══════:OPTIONAL:═══════════╗
+            |        │         │   ║       org search string       ║
+            | ╭──────▼─────╮   │   ║ STRING ie ::defun(test-fun... ║
+            | │commit hash,│   │   ║ LINE   ie ::120               ║
+            | │branch name │   │   ║ RANGE  ie ::10-30             ║
+            | │   or tag   │   │   ╚════════════════△══════════════╝
+            | ╰──────△─────╯   │                    |
+            |        | ╭───────▼─────╮              |
+            |        | │relative path│              |
+            |        | │to repository│              |
+            |        | ╰───────△─────╯              |
+            |        |         |                    |
+            |        |         |                    |
+╭───────────┴─────╮╭─┴──────╮╭─┴───────────╮        |
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el╵╭───────┴───────────────╮
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::(defun orgit-file-store│
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::120                    │
+orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::100-120                │
+                                            ╰───────────────────────╯
+#+end_example
+
+
+The =orgit-file:= link type uses this format:
+#+BEGIN_EXAMPLE
+orgit-file:REPO::REV::FILE-PATH
+orgit-file:REPO::REV::FILE-PATH::SEARCH
+#+END_EXAMPLE
+
+Where:
+- =REPO= identifies the repository (path or name from =magit-repository-directories=)
+- =REV= is a commit hash, branch name, or tag
+- =FILE-PATH= is the path relative to repository root
+- =SEARCH= (optional) is a line number (=43=), range (=43-58=), or text pattern
+
+** Format examples
+
+#+BEGIN_EXAMPLE
+orgit-file:~/code/emacs/::main::lisp/org.el
+orgit-file:~/code/emacs/::v29.1::lisp/org.el::1337
+orgit-file:~/code/emacs/::8b15a0d::lisp/org.el::100-120
+orgit-file:~/code/emacs/::main::lisp/org.el::(defun org-store-link
+#+END_EXAMPLE
+
+** Search option semantics
+
+When storing links with an active region:
+
+- Region spanning complete lines (from =bol= to =bol=) -→ Line number or range
+- Single line: =::N= -→ =<orgit-file-link>::file.el::500=
+- Multiple lines: =::N-M= -→ =<orgit-file-link>::file.el::100-200=
+
+- Region with partial line selection -→ Selected text as search string
+- Text becomes: =::SELECTED-TEXT= -→ =<orgit-file-link>::file.el::defun my-test=
+
+- No active region -→ No search option -→ =<orgit-file-link>::file.el=
+
+#+begin_quote
+[!NOTE]
+"Complete line" means region starts at beginning of line (=bolp=) and ends at
+beginning of next line (=bolp=). Selecting lines 10-14 with trailing newlines
+produces =::10-14=, not =::10-15=, because the final newline character places
+point at the beginning of line 15.
+#+end_quote
+
+When following links, search options behave as:
+
+- Line numbers: Jump to that line with =goto-char= and =forward-line=
+- Text patterns: Use Org's =org-link-search= to find matches (supports heading
+names, custom IDs, and text search)
 
 * Configuration
-** Minimal Configuration
+:PROPERTIES:
+:CUSTOM_ID: configuration
+:END:
+** Minimal configuration
 
-#+begin_src emacs-lisp
+The package works out-of-the-box after loading. No configuration required.
+
+#+BEGIN_SRC emacs-lisp
 (use-package orgit-file
-  :ensure t
-  :after (orgit)
-  :custom
-  ;; Use abbreviated revision hashes in links
-  (orgit-file-abbreviate-revisions t)
-)
+:ensure t
+:after (orgit))
+#+END_SRC
 
-#+end_src
+With this minimal setup, =org-store-link= in Git-tracked files returns =nil=, allowing other =org-store-link= handlers (like standard =file:= links) to activate. To create =orgit-file:= links explicitly, call =M-x orgit-file-store= directly or bind it to a key:
 
-** Recommended Configuration
+#+BEGIN_SRC emacs-lisp
+(keymap-global-set "C-c g l" #'orgit-file-store)
+#+END_SRC
 
-#+begin_src emacs-lisp
+** Recommended configuration
+
+Most users want =orgit-file:= links automatically in specific contexts. This
+configuration creates =orgit-file:= links only when viewing historical revisions
+in =magit-blob-mode=, uses abbreviated revision hashes, and enables text
+fragment export:
+
+#+BEGIN_SRC emacs-lisp
 (use-package orgit-file
-  :ensure t
-  :after (orgit)
-  :custom
-  ;; Use abbreviated revision hashes in links
-  (orgit-file-abbreviate-revisions t)
+:ensure t
+:after (orgit)
+:custom
+;; Create orgit-file links only in magit-blob-mode buffers
+(orgit-file-link-to-file-use-orgit 'blob-buffers-only)
 
-  ;; Create orgit-file links when storing from file buffers
-  (orgit-file-link-to-file-use-orgit 'create-if-interactive)
+;; Use abbreviated revision hashes (7-8 characters)
+(orgit-file-abbreviate-revisions t)
 
-  ;; Enable text fragment export for browsers that support it
-  (orgit-file-export-text-fragments t)
+;; Export text search patterns as URL fragments for browser highlighting
+(orgit-file-export-text-fragments t)
 
-  ;; Store repository names instead of full paths
-  ;; Requires repositories in magit-repository-directories
-  (orgit-store-repository-id t))
-#+end_src
+:bind
+;; Explicit link creation in any buffer
+("C-c g l" . orgit-file-store))
+#+END_SRC
+
+This configuration provides:
+- =org-store-link= in regular file buffers -→ =file:= links (standard behavior)
+- =org-store-link= in =magit-blob-mode= -→ =orgit-file:= links (revision-aware)
+- =C-c g l= anywhere -→ =orgit-file:= link (explicit override)
+
+** Storage behavior options
+#+begin_quote
+[!NOTE]
+A /prefix argument/ modifies command behavior. The most common prefix is ~C-u~
+(Control-u), typed before a command. For example, ~C-u org-store-link~ calls
+~org-store-link~ with a prefix argument. See [[https://www.gnu.org/software/emacs/manual/html_mono/emacs.html#Arguments][(emacs)Arguments]].
+#+end_quote
+
+The variable =orgit-file-link-to-file-use-orgit= controls when =org-store-link= creates =orgit-file:= links:
+
+| Value               | Behavior                                                      | Prefix argument effect                   |
+|---------------------+---------------------------------------------------------------+------------------------------------------|
+| =nil= (default)     | Never create automatically; use =orgit-file-store= explicitly | No effect                                |
+| =blob-buffers-only= | Create only in =magit-blob-mode= buffers                      | =C-u= creates =file:= link instead       |
+| =prefix-to-enable=  | Create only when =org-store-link= called with =C-u=           | =C-u= required to create orgit-file link |
+| =prefix-to-disable= | Always create in Git repositories                             | =C-u= creates =file:= link instead       |
+
+Examples:
+
+#+BEGIN_SRC emacs-lisp
+;; Pattern 1: Explicit control (recommended for Org-roam users)
+(setq orgit-file-link-to-file-use-orgit nil)
+(keymap-global-set "C-c g l" #'orgit-file-store)
+;; Result: org-store-link -→ file:, C-c g l -→ orgit-file:
+
+;; Pattern 2: Opt-in with prefix (second best default)
+(setq orgit-file-link-to-file-use-orgit 'prefix-to-enable)
+;; Result: org-store-link -→ file:, C-u org-store-link -→ orgit-file:
+
+;; Pattern 3: Always revision-aware
+(setq orgit-file-link-to-file-use-orgit 'prefix-to-disable)
+;; Result: org-store-link -→ orgit-file:, C-u org-store-link -→ file:
+
+;; Pattern 4: Historical files only 
+(setq orgit-file-link-to-file-use-orgit 'blob-buffers-only)
+;; Result: In magit-blob-mode -→ orgit-file:, elsewhere -→ file:
+#+END_SRC
+
+- Pattern 1 ::
+[[https://github.com/gggion/orgit-file/blob/screenshots/usage-pattern-1.gif]]
+- Pattern 2 ::
+[[https://github.com/gggion/orgit-file/blob/screenshots/usage-pattern-2.gif]]
+- Pattern 3 ::
+[[https://github.com/gggion/orgit-file/blob/screenshots/usage-pattern-3.gif]]
+- Pattern 4 ::
+[[https://github.com/gggion/orgit-file/blob/screenshots/usage-pattern-4.gif]]
+
+
+When called interactively (=M-x orgit-file-store=), the function always attempts
+to create an =orgit-file:= link, ignoring the
+=orgit-file-link-to-file-use-orgit= setting. This allows explicit link creation
+even when automatic storage is disabled.
+
+** Revision format
+
+The variable =orgit-file-abbreviate-revisions= controls hash length in stored links:
+
+| Value | Hash format                  | Example                   | Notes                                    |
+|-------+------------------------------+---------------------------+------------------------------------------|
+| =nil= | Full 40-character SHA-1      | =8b15a0d0b48a0e3ce09b...= | Default; more stable                     |
+| =t=   | Abbreviated (7-8 characters) | =8b15a0d=                 | More readable; sufficient for most repos |
+
+Abbreviated hashes may become ambiguous in very large repositories with many
+commits, but this is rare in practice. The abbreviated form matches the behavior
+of =git log --oneline= and similar tools.
+
+During export, revisions are always expanded to full 40-character hashes to
+ensure compatibility with hosting services that require full hashes (e.g.,
+Codeberg).
+
+* Advanced configuration
+:PROPERTIES:
+:CUSTOM_ID: advanced-configuration
+:END:
+** Per-repository export configuration
+
+Override export behavior using Git configuration variables:
+
+#+BEGIN_SRC sh
+# Use different remote for public links (default: "origin")
+git config orgit.remote upstream
+
+# Explicitly define file export URL template
+# %r = revision (full hash), %f = file path, %n = repository name
+git config orgit.file "https://git.example.com/repos/%n/blob/%r/%f"
+#+END_SRC
+
+The =orgit.file= template takes precedence over =orgit-file-export-alist= pattern matching.
+
+** Custom export templates
+
+Add templates for unsupported hosting services by extending =orgit-file-export-alist=:
+
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'orgit-file-export-alist
+    '("git\\.company\\.com[:/]\\(.+?\\)\\(?:\\.git\\)?$"
+    "https://git.company.com/%n/blob/%r/%f"))
+#+END_SRC
+
+Template format:
+- =%n=: Repository name (first submatch from regexp)
+- =%r=: Revision (full 40-character hash)
+- =%f=: File path relative to repository root
+
+Line number fragments are appended automatically after template expansion.
+
+** Export preview and URL copying
+
+The command =orgit-file-export-link-at-point= exports the link at point and
+copies the result to the kill ring:
+
+#+BEGIN_SRC emacs-lisp
+(keymap-global-set "C-c g e" #'orgit-file-export-link-at-point)
+#+END_SRC
+
+Without prefix argument, uses =orgit-file-export-preview-format= (default:
+=url-only=). With =C-u=, prompts for format:
+
+| Format     | Output example                                             |
+|------------+------------------------------------------------------------|
+| =url-only= | =https://github.com/user/repo/blob/abc123/file.el#L10-L20= |
+| =html=     | =<a href="URL">description</a>=                            |
+| =md=       | =[description](URL)=                                       |
+| =latex=    | =\href{URL}{description}=                                  |
+| =ascii=    | =description (URL)=                                        |
+
+Customize the default format:
+
+#+BEGIN_SRC emacs-lisp
+(setq orgit-file-export-preview-format 'md)  ;; Default to Markdown
+#+END_SRC
+
+This is useful for quickly copying GitHub URLs to paste into issues, pull requests, or messages.
+
+* Export behavior
+:PROPERTIES:
+:CUSTOM_ID: export-behavior
+:END:
+
+When exporting Org documents containing =orgit-file:= links, the package generates web URLs by:
+
+1. Determining the public remote (=orgit-remote= variable, default: ="origin"=)
+2. Matching the remote URL against =orgit-file-export-alist= patterns
+3. Expanding the template with repository name, full revision hash, and file path
+4. Appending line number or text fragment based on search option
+
+** Line number fragments
+
+Fragment syntax varies by hosting service:
+
+| Service   | Single line | Line range     | Notes                          |
+|-----------+-------------+----------------+--------------------------------|
+| GitHub    | =#L43=      | =#L43-L58=     | Default format                 |
+| GitLab    | =#L43=      | =#L43-L58=     | Same as GitHub                 |
+| Codeberg  | =#L43=      | =#L43-L58=     | Same as GitHub                 |
+| Sourcehut | =#L43=      | =#L43-58=      | No =L= prefix on end line      |
+| Bitbucket | =#lines-43= | =#lines-43:58= | Uses =lines-= prefix and colon |
+
+The correct fragment syntax is selected automatically by matching the export URL
+against hosting service patterns.
+
+** Text fragment export
+
+When =orgit-file-export-text-fragments= is non-nil, text search patterns (not
+line numbers) export with =#:~:text=URL= fragment syntax:
+
+#+BEGIN_EXAMPLE
+Link:   orgit-file:~/repos/emacs/::main::lisp/org.el::(defun org-store-link
+
+Export: https://github.com/user/emacs/blob/abc123/lisp/org.el#:~:text=(defun%20org%2Dstore%2Dlink
+#+END_EXAMPLE
+
+Text fragments are part of the WICG Text Fragments specification, currently supported by:
+- Chromium-based browsers (Chrome, Edge, Brave)
+- Safari
+- Firefox (via extension, unreliable)
+
+Browsers without support ignore the fragment and display the file without
+highlighting. Line numbers always take precedence over text fragments.
+
+The text is percent-encoded following RFC 3986, preserving only unreserved
+characters (A-Z, a-z, 0-9), marks (=.= =~=), spaces, and parentheses. All other
+characters are percent-encoded.
+
+** Export examples
+
+#+BEGIN_EXAMPLE
+┌──────────────────────────────────────────────────────────────────┐
+│                        Link in Org buffer                        │
+├──────────────────────────────────────────────────────────────────┤
+│ [[orgit-file:~/repos/emacs/::main::lisp/org.el::1337][Org link]] │
+└──────────────────────────────────────────────────────────────────┘
+                    ↓ Export to HTML
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│                              Exported HTML                                         │
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ <a href="https://github.com/user/emacs/blob/abc123/lisp/org.el#L1337">Org link</a> │
+└────────────────────────────────────────────────────────────────────────────────────┘
+
+#+END_EXAMPLE
+
+With line range:
+
+#+BEGIN_EXAMPLE
+┌─────────────────────────────────────────────────────────────────────┐
+│ [[orgit-file:~/repos/emacs/::v29.1::lisp/org.el::100-120][Init]]    │
+└─────────────────────────────────────────────────────────────────────┘
+                    ↓ Export to Markdown
+┌────────────────────────────────────────────────────────────────────────┐
+│ [Init](https://github.com/user/emacs/blob/v29.1/lisp/org.el#L100-L120) │
+└────────────────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+With text search (when =orgit-file-export-text-fragments= is =t=):
+
+#+BEGIN_EXAMPLE
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ [[orgit-file:~/repos/emacs/::main::lisp/org.el::(defun org-store-link][Store]] │
+└────────────────────────────────────────────────────────────────────────────────┘
+                    ↓ Export to HTML
+┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ <a href="https://github.com/user/emacs/blob/abc123/lisp/org.el#:~:text=(defun%20org%2Dstore%2Dlink">Store</a> │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+* Integration with Org and Magit
+:PROPERTIES:
+:CUSTOM_ID: integration-with-org-and-magit
+:END:
+** Org mode integration
+
+Orgit-file integrates with Org's link system via =org-link-set-parameters=. This provides:
+
+- =org-store-link= (typically =C-c l=):  Store link to current file and revision
+- =org-insert-link= (typically =C-c C-l=): : Insert stored link
+- Link completion: When inserting links, =C-c C-l orgit-file: TAB= prompts for repository, revision, and file
+- Link following: Click or =C-c C-o= opens file at specified revision using =magit-find-file=
+- Export:  Links transform to web URLs during HTML, Markdown, or LaTeX export
+
+The package respects Org's link precedence. When
+=orgit-file-link-to-file-use-orgit= is =nil= (default), =orgit-file-store=
+returns =nil= for non-applicable buffers, allowing other =org-store-link=
+handlers to activate (e.g., =org-id=, =org-roam=, standard =file:=).
+
+** Magit integration
+
+In =magit-blob-mode= buffers (when viewing historical file revisions via =magit-find-file=):
+
+- Buffer variables provide revision context:
+  - =magit-buffer-revision=: The revision being viewed
+  - =magit-buffer-file-name=: The file path at that revision
+
+- =org-store-link= captures the displayed revision automatically
+
+- Search options work in historical revisions :: stored links preserve both the
+  revision and the line number or text search
+
+- Example workflow ::
+  - Run =magit-log-buffer-file= (=C-x v l= or =C-x g l l=) to view file history
+  - Select a commit and press =RET= to view that file revision
+  - Navigate to interesting code
+  - Run =org-store-link= to capture the exact state
+  - Insert the link in documentation
+
+The link remains valid even if the file is later renamed, moved, or deleted from
+the current branch, because it references a specific commit in Git's object
+database.
+
+** Repository identification
+
+Links use =orgit--current-repository= to identify repositories. This function
+returns:
+
+- Repository name from =magit-repository-directories= if configured
+- Absolute path to repository root otherwise
+
+For maximum portability across machines, configure =magit-repository-directories=:
+
+#+BEGIN_SRC emacs-lisp
+(setq magit-repository-directories
+'(("~/projects" . 1)
+("~/work" . 2)))
+#+END_SRC
+
+With this configuration, links use short names like
+=orgit-file:emacs::main::lisp/org.el= instead of
+=orgit-file:~/projects/emacs::main::lisp/org.el=.
+
+* Alternatives
+:PROPERTIES:
+:CUSTOM_ID: alternatives
+:END:
+#+html: <details><summary>
+** Standard Org file: links
+#+html: </summary>
+Org's built-in =file:= links point to paths on disk:
+
+#+BEGIN_EXAMPLE
+[[file:~/projects/emacs/lisp/org.el::1337]]
+#+END_EXAMPLE
+
+Advantages:
+- Works immediately with no packages
+- Follows symlinks and relative paths
+- Fast (no Git operations)
+
+Disadvantages:
+- References current working tree state
+- Breaks when files are renamed or moved
+- No revision history
+- Cannot reference historical versions
+- Exports to =file:///= URLs (not clickable on web)
+
+Use =file:= links for local notes that don't need to survive refactorings or be shared publicly.
+#+html: </details>
+#+html: <details><summary>
+** git-link package
+#+html: </summary>
+
+The =git-link= package provides =git-link= command to copy GitHub/GitLab URLs to the kill ring:
+
+Advantages:
+- Simpler implementation (single command)
+- Supports more hosting services out of the box
+
+Disadvantages:
+- Not Org-native (doesn't create Org links)
+- No automatic export during Org export
+- No integration with =org-store-link=
+- Requires manual URL pasting
+
+Use =git-link= if you primarily copy URLs to paste in external tools (Slack,
+GitHub issues) rather than documenting in Org files.
+
+*TIP*: orgit-file provides a similar functionality through =orgit-file-export-link-at-point=, although git-link is much more specialized.
+#+html: </details>
+#+html: <details><summary>
+** org-web-tools
+#+html: </summary>
+
+The =org-web-tools= package provides =org-web-tools-insert-link-for-url= to
+fetch web page titles and create links:
+
+This is complementary to =orgit-file=. Use =org-web-tools= for general web URLs,
+=orgit-file= for Git-hosted source code.
+#+html: </details>
+** Comparison table
+#+begin_quote
+[!TIP]
+
+orgit-file is not meant as a full replacement for file: links, it's not
+the intended behavior to replace all file: or id: links. To asure this I've
+added multiple configuration options. Still, if you notice any inconveniences
+when enabling orgit-file, let me know and I can add more options or help you set
+it up so it doesnt trample over all link types
+#+end_quote
+
+
+| Feature                          | orgit-file                              | file: links                             | git-link                                | org-web-tools                           |
+|----------------------------------+-----------------------------------------+-----------------------------------------+-----------------------------------------+-----------------------------------------|
+| Org-native links                 | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Green}\small{\texttt{YES}}}}$ |
+| Revision-aware                   | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    |
+| Automatic export to web URLs     | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Red}\small{\texttt{NO}}}}$    | N/A                                     |
+| Works with historical file views | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    |
+| Line number / text search        | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    |
+| =org-store-link= integration     | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Red}\small{\texttt{NO}}}}$    |
+| No Git required                  | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Green}\small{\texttt{YES}}}}$ | ${{\color{Red}\small{\texttt{NO}}}}$    | ${{\color{Green}\small{\texttt{YES}}}}$ |
+
+* Resources
+:PROPERTIES:
+:CUSTOM_ID: resources
+:END:
+** Related packages
+- [[https://github.com/magit/orgit][orgit]]: Link to Magit buffers and Git objects (commits, branches)
+- [[https://github.com/sshaw/git-link][git-link]]: Copy GitHub/GitLab URLs to kill ring
+- [[https://github.com/alphapapa/org-web-tools][org-web-tools]]: Fetch web page titles and create Org links
+
+** Hosting services
+
+The package has built-in support for:
+- [[https://github.com][GitHub]]
+- [[https://gitlab.com][GitLab]]
+- [[https://codeberg.org][Codeberg]]
+- [[https://sr.ht][Sourcehut]]
+- [[https://bitbucket.org][Bitbucket]]
+
+Additional services can be added via =orgit-file-export-alist=.
+Or let me know, we could add it.
+
+** Text Fragments specification
+
+- [[https://wicg.github.io/scroll-to-text-fragment/][WICG Text Fragments Specification]]
+- [[https://chromestatus.com/feature/4733392803332096][Chrome Platform Status: Text Fragments]]
+- [[https://caniuse.com/url-scroll-to-text-fragment][Browser support table]]
+
+* Contributing
+:PROPERTIES:
+:CUSTOM_ID: contributing
+:END:
+Bug reports and feature requests are welcome on the [[https://github.com/gggion/orgit-file/issues][issue tracker]].
+
+If you find this package useful, consider:
+- Reporting edge cases in fragment generation
+- Contributing export templates for additional hosting services  
+- Improving documentation with real-world examples
+
+* Acknowledgments
+:PROPERTIES:
+:CUSTOM_ID: acknowledgments
+:END:
+
+Big thanks to the following people, be it from here in github or any other place
+were contributions, feedback, ideas or criticism was made, it all helps the
+learning process and makes this better because of it.
+
++ Ideas and/or user feedback ::  CandyCorvid, Alfamadorian.
+
+
+* License
+:PROPERTIES:
+:CUSTOM_ID: license
+:END:
+
+GPLv3
+--------------
+/Note: This package is independently developed and not officially affiliated with DuckDB./
