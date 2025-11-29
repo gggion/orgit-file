@@ -205,6 +205,25 @@ argument, prompt for format interactively."
           (const :tag "URL only" url-only))
   :package-version '(orgit-file . "0.3.0"))
 
+(defcustom orgit-file-description-format "%%N (%%R): %%F"
+  "Format used for `orgit-file' links.
+
+The format is used in two passes.  The first pass consumes all
+specs of the form `%C'; to preserve a spec for the second pass
+it has to be quoted like `%%C'.
+
+The first pass accepts the \"pretty format\" specs documented
+in the git-show(1) manpage.
+
+The second pass accepts these specs:
+`%%N' The name or id of the repository.
+`%%R' Either a reference, abbreviated revision or revision of
+      the form \":/TEXT\".
+`%%F' The file name."
+  :package-version '(orgit-file . "0.4.0")
+  :group 'orgit-file
+  :type 'string)
+
 ;;; File links
 
 ;;;###autoload
@@ -407,7 +426,12 @@ Return non-nil if a link was stored, nil otherwise."
                                    repo-id rev-for-link file))))
               (org-link-store-props
                :type "orgit-file"
-               :link link)
+               :link link
+               :description (format-spec
+                             (magit-rev-format orgit-file-description-format rev)
+                             `((?N . ,repo-id)
+                               (?R . ,(magit-rev-abbrev rev)) 
+                               (?F . ,file))))
               ;; When called interactively, add to org-stored-links
               (when called-interactively
                 (org-link--add-to-stored-links link nil)
