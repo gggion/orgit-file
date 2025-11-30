@@ -205,24 +205,57 @@ argument, prompt for format interactively."
           (const :tag "URL only" url-only))
   :package-version '(orgit-file . "0.3.0"))
 
-(defcustom orgit-file-description-format "%%N (%%R): %%F"
-  "Format used for `orgit-file' links.
+(defcustom orgit-file-description-use-readable-revisions t
+  "Whether to use human-readable revision names in link descriptions.
 
-The format is used in two passes.  The first pass consumes all
-specs of the form `%C'; to preserve a spec for the second pass
-it has to be quoted like `%%C'.
+When non-nil, show tags and branch names in descriptions when
+available.  For example, \"v1.0.0\" or \"main\" instead of
+abbreviated hashes like \"a0f3651\".
 
-The first pass accepts the \"pretty format\" specs documented
-in the git-show(1) manpage.
+When nil, always show abbreviated hashes in descriptions,
+regardless of whether the revision is a tag or branch.
 
-The second pass accepts these specs:
-`%%N' The name or id of the repository.
-`%%R' Either a reference, abbreviated revision or revision of
-      the form \":/TEXT\".
-`%%F' The file name."
+This setting only affects link descriptions, not the links
+themselves.  Link format is controlled by
+`orgit-file-abbreviate-revisions'.
+
+Examples with non-nil (default):
+  \"emacs (v29.1): lisp/org.el\"
+  \"emacs (main): lisp/org.el\"
+
+Examples with nil:
+  \"emacs (a0f3651): lisp/org.el\"
+  \"emacs (73347ef): lisp/org.el\""
+  :package-version '(orgit-file . "0.4.0")
+  :group 'orgit-file
+  :type 'boolean)
+
+(defcustom orgit-file-description-format "%%N (%%R): %%F%%S"
+  "Format string for `orgit-file' link descriptions.
+
+The format uses two-pass expansion:
+
+First pass: git-show(1) pretty format specs (%s, %an, %ad, etc.).
+Quote specs for second pass with double percent: %%N.
+
+Second pass: Custom specs for orgit-file components:
+  %%N  Repository name or path
+  %%R  Revision (format controlled by
+       `orgit-file-description-use-readable-revisions')
+  %%F  File path relative to repository root
+  %%S  Search option (line numbers or text) with separator
+
+Examples:
+  \"%%N (%%R): %%F%%S\"  → \"emacs (v29.1): lisp/org.el (line 42)\"
+  \"%%F at %%R\"         → \"lisp/org.el at main\"
+  \"[%%N] %s - %%F%%S\"  → \"[emacs] Add feature - lisp/org.el\"
+
+See git-show(1) manpage for available first-pass specs."
   :package-version '(orgit-file . "0.4.0")
   :group 'orgit-file
   :type 'string)
+
+
 
 ;;; File links
 
@@ -236,6 +269,20 @@ The second pass accepts these specs:
                              :complete #'orgit-file-complete-link)))
 
 ;;;; Helper Functions
+(defun orgit-file--format-revision-for-description (rev)
+  "Return revision string for REV according to user preference.
+
+When `orgit-file-description-use-readable-revisions' is non-nil,
+prefer tags, then branches, then abbreviated hashes.
+
+When nil, always return abbreviated hash."
+  (if orgit-file-description-use-readable-revisions
+      (or (and (magit-ref-p rev) rev)
+          (magit-name-tag rev)
+          (magit-name-branch rev)
+          (magit-rev-abbrev rev))
+    (magit-rev-abbrev rev)))
+
 (defun orgit-file--format-line-fragment (url line-start line-end)
   "Format line number fragment for URL based on hosting service.
 
@@ -326,64 +373,41 @@ matches the behavior of similar line-wise selection modes."
               (buffer-substring-no-properties beg end))))))))
 
 ;;;; Main Functions
+
 ;;;###autoload
 (defun orgit-file-store ()
-  "Store a link to the file in a Magit file or blob buffer.
+  "Store link to file in current Magit buffer.
 
-The link includes the repository, revision, and file path.
+In `magit-blob-mode' buffers, store link to the displayed revision.
+In regular file buffers within Git repositories, store link to HEAD.
 
-When in a `magit-blob-mode' buffer (viewing a historical
-revision), store a link to that specific revision.
+When region is active:
+- Complete lines (from bol to bol): store line number or range
+- Partial selection: store selected text as search pattern
 
-When the region is active, automatically append a search option:
+Link format is controlled by `orgit-file-abbreviate-revisions'.
+Description format is controlled by `orgit-file-description-format'.
 
-- If the region spans complete lines (from beginning to end of
-  line), append line number or range.  Single line becomes ::N,
-  multiple lines become ::N-M.
+Storage behavior depends on `orgit-file-link-to-file-use-orgit':
+- nil: never store automatically (call this function explicitly)
+- `blob-buffers-only': store only in `magit-blob-mode'
+- `prefix-to-enable': store only with \\[universal-argument]
+- `prefix-to-disable': always store (\\[universal-argument] to disable)
 
-- If the region contains partial line selection, append the
-  selected text as a search string ::TEXT.
+When called interactively, always store link regardless of settings.
+Link is added to `org-stored-links' for `org-insert-link'.
 
-The behavior is controlled by `orgit-file-link-to-file-use-orgit':
-
-- When `prefix-to-disable', always create orgit-file links in Git
-  repositories unless called with prefix argument.
-
-- When `prefix-to-enable', only create orgit-file links when
-  called with prefix argument.
-
-- When `blob-buffers-only', only create links in `magit-blob-mode'
-  buffers.
-
-- When nil, never create links automatically (but this function
-  can still be called interactively).
-
-The revision format in the link is controlled by
-`orgit-file-abbreviate-revisions'.  When non-nil, use abbreviated
-hashes; when nil, use full 40-character hashes.
-
-When called interactively, always attempt to store an orgit-file
-link, ignoring the `orgit-file-link-to-file-use-orgit' setting.
-This allows users to explicitly request orgit-file links even when
-automatic storage is disabled.  The link is added to
-`org-stored-links' for insertion with `org-insert-link'.
-
-When called non-interactively (from `org-store-link'), prefix
-argument behavior depends on the setting:
-
-- If `orgit-file-link-to-file-use-orgit' is `prefix-to-disable' or
-  `blob-buffers-only', prefix argument prevents storing orgit-file
-  link.
-
-- If `orgit-file-link-to-file-use-orgit' is `prefix-to-enable',
-  prefix argument is required to store orgit-file link.
-
-Return non-nil if a link was stored, nil otherwise."
+Return non-nil if link was stored."
   (interactive)
+  ;; Only proceed if we're in a Git repository
   (when-let* ((repo (magit-toplevel)))
+    ;; Determine storage context
     (let* ((in-blob-buffer (bound-and-true-p magit-blob-mode))
            (called-interactively (called-interactively-p 'interactive))
            (has-prefix current-prefix-arg)
+           ;; Decide whether to store based on context and settings.
+           ;; Interactive calls always store. Non-interactive calls
+           ;; check orgit-file-link-to-file-use-orgit and prefix arg.
            (should-store
             (cond
              ;; When called interactively, always try to store
@@ -391,52 +415,104 @@ Return non-nil if a link was stored, nil otherwise."
              ;; When called from org-store-link, check settings
              (t
               (cond
-               ;; Skip if prefix arg given (only applies to prefix-to-disable and blob-buffers-only)
+               ;; Skip if prefix arg given (only for prefix-to-disable
+               ;; and blob-buffers-only modes)
                ((and has-prefix
                      (memq orgit-file-link-to-file-use-orgit
                            '(prefix-to-disable blob-buffers-only)))
                 nil)
+
+               ;; Require prefix arg to enable
                ((eq orgit-file-link-to-file-use-orgit 'prefix-to-enable) has-prefix)
+               ;; Always store unless prefix arg disables
                ((eq orgit-file-link-to-file-use-orgit 'prefix-to-disable) t)
+               ;; Store only in magit-blob-mode buffers
                ((eq orgit-file-link-to-file-use-orgit 'blob-buffers-only) in-blob-buffer)
-               ;; nil: don't store
+               ;; nil: don't store automatically
                (t nil))))))
+
       (when should-store
+        ;; Extract file path relative to repository root
         (let ((file (cond
-                     ;; In blob buffers, use magit-buffer-file-name with magit-file-relative-name
+                     ;; In blob buffers, use magit-buffer-file-name
                      ((bound-and-true-p magit-blob-mode)
                       (magit-file-relative-name magit-buffer-file-name))
-                     ;; In regular file buffers, use buffer-file-name with magit-file-relative-name
+                     ;; In regular file buffers, use buffer-file-name
                      (buffer-file-name
                       (magit-file-relative-name buffer-file-name))))
+              ;; Determine revision: use magit-buffer-revision in blob
+              ;; buffers, otherwise use HEAD
               (rev (or (and (bound-and-true-p magit-blob-mode)
                             magit-buffer-revision)
                        (and buffer-file-name
                             (magit-rev-parse "HEAD")))))
+          ;; Only proceed if we have both file and revision
           (when (and file rev)
             (let* ((repo-id (orgit--current-repository))
+                   ;; Revision for description: format based on
+                   ;; orgit-file-description-use-readable-revisions.
+                   ;; When t: tag > branch > abbreviated hash.
+                   ;; When nil: always abbreviated hash.
                    (rev-for-link (if orgit-file-abbreviate-revisions
                                      (magit-rev-abbrev rev)
                                    rev))
+                   ;; Revision for description: human-readable form
+                   ;; (tag > branch > abbreviated hash)
+                   (rev-for-desc (orgit-file--format-revision-for-description rev))
+                   ;; Detect search option from active region
                    (search-option (orgit-file--detect-search-option))
-                   (link (if search-option
-                             (format "orgit-file:%s::%s::%s::%s"
-                                     repo-id rev-for-link file search-option)
-                           (format "orgit-file:%s::%s::%s"
-                                   repo-id rev-for-link file))))
-              (org-link-store-props
-               :type "orgit-file"
-               :link link
-               :description (format-spec
-                             (magit-rev-format orgit-file-description-format rev)
-                             `((?N . ,repo-id)
-                               (?R . ,(magit-rev-abbrev rev)) 
-                               (?F . ,file))))
-              ;; When called interactively, add to org-stored-links
-              (when called-interactively
-                (org-link--add-to-stored-links link nil)
-                (message "Stored: %s" link))
-              t)))))))
+                   ;; Variables for parsed line numbers
+                   (line-start nil)
+                   (line-end nil)
+                   ;; Formatted search description for link description
+                   (search-desc nil))
+
+              ;; Parse search option to detect line numbers and format
+              ;; description. Line numbers get special formatting like
+              ;; " (line 42)" or " (lines 10-20)". Text searches get
+              ;; formatted as " (search text)".
+              (when search-option
+                (cond
+                 ;; Line range: "43-58"
+                 ((string-match "\\`\\([0-9]+\\)-\\([0-9]+\\)\\'" search-option)
+                  (setq line-start (string-to-number (match-string 1 search-option))
+                        line-end (string-to-number (match-string 2 search-option))
+                        search-desc (format " (lines %d-%d)" line-start line-end)))
+                 ;; Single line: "43"
+                 ((string-match "\\`\\([0-9]+\\)\\'" search-option)
+                  (setq line-start (string-to-number (match-string 1 search-option))
+                        line-end line-start
+                        search-desc (format " (line %d)" line-start)))
+                 ;; Text search: anything else
+                 (t
+                  (setq search-desc (format " (%s)" search-option)))))
+
+              ;; Construct the orgit-file link
+              (let ((link (if search-option
+                              (format "orgit-file:%s::%s::%s::%s"
+                                      repo-id rev-for-link file search-option)
+                            (format "orgit-file:%s::%s::%s"
+                                    repo-id rev-for-link file))))
+                ;; Store link properties for org-mode
+                (org-link-store-props
+                 :type "orgit-file"
+                 :link link
+                 ;; Generate description using two-pass format-spec.
+                 ;; First pass: magit-rev-format expands git-show specs.
+                 ;; Second pass: format-spec expands our custom specs.
+                 :description (format-spec
+                               (magit-rev-format orgit-file-description-format rev)
+                               `((?N . ,repo-id)
+                                 (?R . ,rev-for-desc)
+                                 (?F . ,file)
+                                 (?S . ,(or search-desc "")))))
+                ;; When called interactively, add to org-stored-links
+                ;; so user can insert with org-insert-link
+                (when called-interactively
+                  (org-link--add-to-stored-links link nil)
+                  (message "Stored: %s" link))
+                ;; Return non-nil to indicate success
+                t))))))))
 
 ;;;###autoload
 (defun orgit-file-open (path)
