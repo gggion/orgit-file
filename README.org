@@ -100,7 +100,7 @@ Verify Magit is configured and can access your Git repositories:
   :after (orgit))
 #+end_src
 
-- Doom Emacs (MELPA):: 
+- Doom Emacs (MELPA)::
 
 #+begin_src elisp
 ;; packages.el
@@ -139,7 +139,7 @@ configuration.
 To verify it works:
 
 1. Open any file in a Git repository
-2. Run =M-x orgit-file-store= 
+2. Run =M-x orgit-file-store=
 3. Switch to an Org buffer
 4. Run =M-x org-insert-link= (or =C-c C-l=)
 5. Select the stored link
@@ -151,30 +151,30 @@ You should see an =orgit-file:= link in your Org buffer.
 :CUSTOM_ID: link-format
 :END:
 #+begin_example
-orgit-file:REPO::REV::FILE-PATH::SEARCH
-orgit-file:REPO::REV::FILE-PATH ╰────┬─╯
-            ╰┬───╯╰──┬╯╰───────┬─╯     │
-        ╭───╴▼╶────╮ │         │       │
-        │repository│ │         │       │
-        ╰───△──────╯ │         │   ╔═══▼══════:OPTIONAL:═══════════╗
-            |        │         │   ║       org search string       ║
-            | ╭──────▼─────╮   │   ║ STRING ie ::defun(test-fun... ║
-            | │commit hash,│   │   ║ LINE   ie ::120               ║
-            | │branch name │   │   ║ RANGE  ie ::10-30             ║
-            | │   or tag   │   │   ╚════════════════△══════════════╝
-            | ╰──────△─────╯   │                    |
-            |        | ╭───────▼─────╮              |
-            |        | │relative path│              |
-            |        | │to repository│              |
-            |        | ╰───────△─────╯              |
-            |        |         |                    |
-            |        |         |                    |
-╭───────────┴─────╮╭─┴──────╮╭─┴───────────╮        |
+             orgit-file:REPO::REV::FILE-PATH::SEARCH
+             orgit-file:REPO::REV::FILE-PATH ╰────┬─╯
+                       ╰┬───╯╰──┬╯╰───────┬─╯     │
+                   ╭───╴▼╶────╮ │         │       │
+                   │repository│ │         │       │
+                   ╰───△──────╯ │         │   ╔═══▼══════:OPTIONAL:═══════════╗
+                       |        │         │   ║       org search string       ║
+                       | ╭──────▼─────╮   │   ║ STRING ie ::defun(test-fun... ║
+                       | │commit hash,│   │   ║ LINE   ie ::120               ║
+                       | │branch name │   │   ║ RANGE  ie ::10-30             ║
+                       | │   or tag   │   │   ╚═══════════════△═══════════════╝
+                       | ╰──────△─────╯   │                   |
+                       |        | ╭───────▼─────╮             |
+                       |        | │relative path│             |
+                       |        | │to repository│             |
+                       |        | ╰───────△─────╯             |
+                       |        |         |                   |
+                       |        |         |                   |
+           ╭───────────┴─────╮╭─┴──────╮╭─┴──────────╮        |
 orgit-file:~/code/orgit-file::pef662d3::orgit-file.el╵╭───────┴───────────────╮
 orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::(defun orgit-file-store│
 orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::120                    │
 orgit-file:~/code/orgit-file::pef662d3::orgit-file.el::100-120                │
-                                            ╰───────────────────────╯
+                                                      ╰───────────────────────╯
 #+end_example
 
 
@@ -310,7 +310,7 @@ Examples:
 (setq orgit-file-link-to-file-use-orgit 'prefix-to-disable)
 ;; Result: org-store-link -→ orgit-file:, C-u org-store-link -→ file:
 
-;; Pattern 4: Historical files only 
+;; Pattern 4: Historical files only
 (setq orgit-file-link-to-file-use-orgit 'blob-buffers-only)
 ;; Result: In magit-blob-mode -→ orgit-file:, elsewhere -→ file:
 #+END_SRC
@@ -680,7 +680,7 @@ Bug reports and feature requests are welcome on the [[https://github.com/gggion/
 
 If you find this package useful, consider:
 - Reporting edge cases in fragment generation
-- Contributing export templates for additional hosting services  
+- Contributing export templates for additional hosting services
 - Improving documentation with real-world examples
 
 * Acknowledgments
@@ -693,7 +693,7 @@ were contributions, feedback, ideas or criticism was made, it all helps the
 learning process and makes this better because of it.
 
 + Ideas and/or user feedback ::  CandyCorvid, Alfamadorian.
-+ Code Contributions :: [[https://github.com/danielfleischer][Daniel Fleischer]]. 
++ Code Contributions :: [[https://github.com/danielfleischer][Daniel Fleischer]].
 
 
 * License
